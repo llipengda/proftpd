@@ -45,6 +45,9 @@ volatile unsigned int recvd_signal_flags = 0;
 
 static const char *trace_channel = "signal";
 
+extern void __gcov_dump(void);
+extern void __gcov_reset(void);
+
 static RETSIGTYPE sig_terminate(int signo);
 static void install_stacktrace_handler(void);
 
@@ -449,8 +452,7 @@ static void handle_signals(int delay_on_eintr) {
     errno = 0;
   }
 
-  while (recvd_signal_flags) {
-    if (recvd_signal_flags & RECEIVED_SIG_ALRM) {
+  while (recvd_signal_flags) {    if (recvd_signal_flags & RECEIVED_SIG_ALRM) {
       recvd_signal_flags &= ~RECEIVED_SIG_ALRM;
       pr_trace_msg(trace_channel, 9, "handling SIGALRM (signal %d)", SIGALRM);
       handle_alarm();
@@ -578,6 +580,10 @@ RETSIGTYPE pr_signals_handle_disconnect(int signo) {
 
 /* "Events", in this case, are SIGUSR2 signals. */
 RETSIGTYPE pr_signals_handle_event(int signo) {
+  pr_trace_msg(trace_channel, 9, "received SIGUSR2 (signal %d)", SIGUSR2);
+
+  __gcov_dump();
+  __gcov_reset();
   recvd_signal_flags |= RECEIVED_SIG_EVENT;
 
   if (signal(SIGUSR2, pr_signals_handle_event) == SIG_ERR) {
