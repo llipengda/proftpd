@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# set -x
 
 PID=-1
 
@@ -45,7 +46,7 @@ MaxInstances 30
 User nobody
 Group nogroup
 RequireValidShell off
-DefaultRoot ${ROOT_DIR}/.cov-ftp-root
+# DefaultRoot /home/ubuntu
 PidFile ${RUNTIME_DIR}/proftpd.pid
 ScoreboardFile off
 SystemLog ${LOG}
@@ -85,30 +86,31 @@ capture_and_merge() {
 }
 
 cleanup() {
-  if [[ ${PID} -ne -1 ]]; then
-    kill -"${TRIGGER_SIGNAL}" "${PID}" || true
-    kill -9 "${PID}" || true
-    capture_and_merge || true
-    summary_to_csv "exit" || true
-    cp merged.info "${OUT_DIR}/coverage.info" || true
-    genhtml merged.info --output-directory "${OUT_DIR}/html_report" --rc branch_coverage=1 -q --ignore-errors inconsistent,inconsistent --ignore-errors corrupt,corrupt  || true
-    exit 0
-  fi
+  capture_and_merge || true
+  summary_to_csv "exit" || true
+  cp merged.info "${OUT_DIR}/coverage.info" || true
+  genhtml merged.info --output-directory "${OUT_DIR}/html_report" --rc branch_coverage=1 -q --ignore-errors inconsistent,inconsistent --ignore-errors corrupt,corrupt  || true
+  exit 0
 }
 
+trap cleanup INT TERM QUIT
  
 chown -R nobody .
-./proftpd -n -d "${D_LEVEL}" -c "${CONF_FILE}" >"${LOG}" 2>"${LOG_ERR}" &
-PID=$!
+
+(
+  trap "kill 0" SIGINT SIGTERM EXIT
+
+  while true; do
+    ./proftpd -n -d "${D_LEVEL}" -c "${CONF_FILE}" >"${LOG}" 2>"${LOG_ERR}" &
+    pid=$!
+    wait $pid
+  done
+) &
 
 sleep 3
-kill -"${TRIGGER_SIGNAL}" "${PID}"
-lcov --capture --directory . --output-file merged.info --rc branch_coverage=1 -j "${NPROC}" -q "${LCOV_EXTRA_ARGS[@]}"
-summary_to_csv "start"
 
 while true; do
   sleep "${INTERVAL}"
-  kill -"${TRIGGER_SIGNAL}" "${PID}"
   capture_and_merge
   summary_to_csv
 done

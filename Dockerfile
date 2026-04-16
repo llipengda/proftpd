@@ -23,8 +23,14 @@ ENV NAME=proftpd \
     LOG_ERR=/dev/null
 
 RUN chmod +x ./cov.sh && \
-    ./configure CFLAGS="--coverage -O0 -g" LDFLAGS="--coverage" && \
+    ./configure CFLAGS="--coverage -O0 -g" LDFLAGS="--coverage" --enable-devel=nodaemon:nofork && \
     make -j"$(nproc)" && \
     chmod -R 777 /target
+
+RUN groupadd ubuntu && \
+    useradd -rm -d /home/ubuntu -s /bin/bash -g ubuntu -G sudo -u 1000 ubuntu -p "$(openssl passwd -1 ubuntu)" && \
+    mkdir /home/ubuntu/ftpshare && \
+    chown -R ubuntu:ubuntu /home/ubuntu/ftpshare && \
+    chmod -R 777 /tmp
 
 CMD ["./cov.sh"]
